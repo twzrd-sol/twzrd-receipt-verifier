@@ -24,8 +24,8 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://intel.twzrd.xyz"
-Repository = "https://github.com/twzrd-sol/wzrd-final"
-"Source Code" = "https://github.com/twzrd-sol/wzrd-final/tree/main/packages/twzrd-agent-intel/verifier"
+Repository = "https://github.com/twzrd-sol/twzrd-receipt-verifier"
+"Source Code" = "https://github.com/twzrd-sol/twzrd-receipt-verifier"
 Descriptor = "https://intel.twzrd.xyz/.well-known/x402"
 
 [project.scripts]

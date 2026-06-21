@@ -15,12 +15,11 @@
   ],
   "homepage": "https://intel.twzrd.xyz",
   "bugs": {
-    "url": "https://github.com/twzrd-sol/wzrd-final/issues"
+    "url": "https://github.com/twzrd-sol/twzrd-receipt-verifier/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/twzrd-sol/wzrd-final.git",
-    "directory": "packages/twzrd-agent-intel/verifier"
+    "url": "git+https://github.com/twzrd-sol/twzrd-receipt-verifier.git"
   },
   "license": "MIT",
   "author": "TWZRD",
