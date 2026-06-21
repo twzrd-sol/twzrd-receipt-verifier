@@ -1,0 +1,46 @@
+{
+  "name": "twzrd-receipt-verifier",
+  "version": "1.0.7",
+  "description": "Standalone offline verifier for TWZRD AO-Receipt V5 (Ed25519-signed keccak256 leaf). No trust in TWZRD servers or code.",
+  "keywords": [
+    "twzrd",
+    "x402",
+    "solana",
+    "ed25519",
+    "keccak256",
+    "receipt",
+    "verifier",
+    "agent",
+    "attestation"
+  ],
+  "homepage": "https://intel.twzrd.xyz",
+  "bugs": {
+    "url": "https://github.com/twzrd-sol/wzrd-final/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/twzrd-sol/wzrd-final.git",
+    "directory": "packages/twzrd-agent-intel/verifier"
+  },
+  "license": "MIT",
+  "author": "TWZRD",
+  "bin": {
+    "verify-twzrd-receipt": "./verify_twzrd_receipt.js"
+  },
+  "files": [
+    "verify_twzrd_receipt.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "verify": "node verify_twzrd_receipt.js"
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "dependencies": {
+    "bs58": "^4.0.1",
+    "js-sha3": "^0.8.0",
+    "tweetnacl": "^1.0.3"
+  }
+}

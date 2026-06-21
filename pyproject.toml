@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "twzrd-receipt-verifier"
+version = "1.0.7"
+description = "Standalone offline verifier for TWZRD AO-Receipt V5 (Ed25519-signed keccak256 leaf). No trust in TWZRD servers or code."
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "TWZRD" }]
+keywords = ["twzrd", "x402", "solana", "ed25519", "keccak256", "receipt", "verifier", "agent", "attestation"]
+dependencies = [
+    "pynacl>=1.5",
+    "pycryptodome>=3.18",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+    "Intended Audience :: Developers",
+]
+
+[project.urls]
+Homepage = "https://intel.twzrd.xyz"
+Repository = "https://github.com/twzrd-sol/wzrd-final"
+"Source Code" = "https://github.com/twzrd-sol/wzrd-final/tree/main/packages/twzrd-agent-intel/verifier"
+Descriptor = "https://intel.twzrd.xyz/.well-known/x402"
+
+[project.scripts]
+twzrd-verify-receipt = "verify_twzrd_receipt:main"
+
+[tool.setuptools]
+py-modules = ["verify_twzrd_receipt"]
