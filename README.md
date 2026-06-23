@@ -94,7 +94,7 @@ twzrd-verify-receipt receipt.json --max-age 300
 cat receipt.json | twzrd-verify-receipt -
 ```
 
-Source: [packages/twzrd-agent-intel/verifier](https://github.com/twzrd-sol/wzrd-final/tree/main/packages/twzrd-agent-intel/verifier)
+Source: this repository.
 
 ## Node
 
