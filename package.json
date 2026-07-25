@@ -1,6 +1,6 @@
 {
   "name": "twzrd-receipt-verifier",
-  "version": "1.0.7",
+  "version": "1.2.3",
   "description": "Standalone offline verifier for TWZRD AO-Receipt V5 (Ed25519-signed keccak256 leaf). No trust in TWZRD servers or code.",
   "keywords": [
     "twzrd",
