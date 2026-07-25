@@ -1,16 +1,7 @@
 # TWZRD Receipt Verifier (standalone)
 
-[![npm version](https://img.shields.io/npm/v/twzrd-receipt-verifier)](https://www.npmjs.com/package/twzrd-receipt-verifier)
-[![npm downloads](https://img.shields.io/npm/dw/twzrd-receipt-verifier)](https://www.npmjs.com/package/twzrd-receipt-verifier)
-[![PyPI version](https://img.shields.io/pypi/v/twzrd-receipt-verifier)](https://pypi.org/project/twzrd-receipt-verifier/)
-[![license](https://img.shields.io/npm/l/twzrd-receipt-verifier)](LICENSE)
-[![node](https://img.shields.io/node/v/twzrd-receipt-verifier)](https://nodejs.org)
-![platform](https://img.shields.io/badge/platform-Node%20%7C%20Python-blue)
-
-> **Zero-trust, offline-first. No API calls. No servers. No TWZRD code you didn't read.**
-
-**Hero quickstart — verify a real TWZRD receipt in one command.** No wallet, no
-signup, no API key. Copy-paste this and watch it print `VALID`:
+**Verify a real TWZRD receipt in one command.** No wallet, no signup, no API key.
+Copy-paste this and watch it print `VALID`:
 
 ```bash
 W=zoz7neLHXoaLwNBuckSqNqaMsacpqJsphtFuNNpQyt3
@@ -26,25 +17,18 @@ RESULT           : VALID (TWZRD-authored, untampered)
 ```
 
 That output came from your machine, not ours. Nothing in the command trusts a
-TWZRD server — it fetches bytes, then checks an Ed25519 signature against a
+TWZRD server - it fetches bytes, then checks an Ed25519 signature against a
 published key using audited crypto libraries.
 
 > **`--wallet` is required when piping.** A cNFT receipt's wallet is inside the
-> signed payload but not the anchor block, so it can't be inferred from stdin.
+> signed payload but not the anchor block, so it cannot be inferred from stdin.
 > Save the file as `<wallet>.json` instead and the filename supplies it:
 > `curl -s https://twzrd.xyz/r/$W.json -o $W.json && npx twzrd-receipt-verifier $W.json`
-
-Other receipt families:
-
-```bash
-# AO-Receipt (paid trust API): works on any receipt JSON
-npx twzrd-receipt-verifier receipt.json --self-test
-```
 
 ---
 
 Verify a TWZRD receipt offline, trusting **nothing from TWZRD's servers or
-codebase** — only the receipt, TWZRD's published public key, and two
+codebase** - only the receipt, TWZRD's published public key, and two
 widely-audited crypto libraries. The verifier **auto-detects** two receipt
 families:
 
@@ -55,49 +39,22 @@ families:
 
 For V5/V6 the verifier reads the domain the receipt carries and applies the
 matching leaf rules (V6 binds the `reputation_*` provenance fields into the signed
-leaf; V5 left them unsigned). For cNFT receipts there is no leaf — tamper-evidence
+leaf; V5 left them unsigned). For cNFT receipts there is no leaf - tamper-evidence
 **is** the signature: any change to a signed field (including the wallet)
 invalidates it.
 
 If it says `VALID`, the receipt was authored by TWZRD and was not altered.
 Unsigned, wrong-key, wrong-wallet, or tampered receipts fail.
 
-## Why this exists
-
-TWZRD is the **pre-spend trust gate for agents paying over x402**. Every agent
-payment should go through a before/during/after trust loop:
-
-1. **Preflight** — is this counterparty safe to pay?
-2. **Pay** — settle on-chain with a signed receipt.
-3. **Verify** — trust-but-verify every receipt offline.
-
-This verifier is step 3 — the **credibility anchor** that lets any agent prove it
-actually paid, and any receiver confirm the payment was legitimate, without
-trusting TWZRD's live infrastructure. It's the lowest-friction entry point into
-the TWZRD trust layer: MIT-licensed, zero-install, offline-first.
-
-### Use cases
-
-- **Agent payment verification** — confirm every x402 payment produced a valid
-  TWZRD receipt before trusting the response.
-- **Preflight integration** — run `--self-test` in CI to prove the verification
-  pipeline works before wiring it into a payment agent.
-- **Solana AA paymaster / relay** — verify receipts as part of a fee-payer
-  sponsorship flow (proof that the payer-slot semantics were honored).
-- **Streaming micropay proofs** — batch-verify receipt chains for recurring or
-  streaming payment models.
-- **Offline audit** — verify receipts on an air-gapped machine with a pinned key.
-  No network required.
-
 ## Where this fits: the agent trust loop
 
 This verifier is the **last step** of the x402 trust rail an agent runs before and
 after it spends:
 
-1. **Discover** a model/provider — [`wzrd-client`](https://pypi.org/project/wzrd-client/) (PyPI) or [`@wzrd_sol/sdk`](https://www.npmjs.com/package/@wzrd_sol/sdk) (npm)
-2. **Preflight** the seller wallet, free — `POST https://intel.twzrd.xyz/v1/intel/preflight` (or MCP `get_readiness_card_tool`)
-3. **Pay** with a signed receipt — `GET https://intel.twzrd.xyz/v1/intel/trust/{seller}` (0.05 USDC, x402)
-4. **Verify** the receipt offline — **this package** (trust nothing but the bytes + the public key)
+1. **Discover** a model/provider - [`wzrd-client`](https://pypi.org/project/wzrd-client/) (PyPI) or [`@wzrd_sol/sdk`](https://www.npmjs.com/package/@wzrd_sol/sdk) (npm)
+2. **Preflight** the seller wallet, free - `POST https://intel.twzrd.xyz/v1/intel/preflight` (or MCP `get_readiness_card_tool`)
+3. **Pay** with a signed receipt - `GET https://intel.twzrd.xyz/v1/intel/trust/{seller}` (0.05 USDC, x402)
+4. **Verify** the receipt offline - **this package** (trust nothing but the bytes + the public key)
 
 ```bash
 # zero-install: verify a receipt straight from the published package
@@ -106,30 +63,6 @@ npx twzrd-receipt-verifier receipt.json --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXG
 # replay-resistance (opt-in): reject receipts older than 60s — and reject any with no timestamp
 npx twzrd-receipt-verifier receipt.json --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf --max-age 60
 ```
-
-### 🔐 Paranoid mode
-
-Pin the key out-of-band with `--pubkey` instead of fetching it. You never trust
-the live endpoint to tell you which key to trust:
-
-```bash
-npx twzrd-receipt-verifier receipt.json --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf
-```
-
-For cNFT receipts, the genesis signing key (`2ELSDx...`) is **baked into the
-package** — no network fetch by default. Use `--fetch-key` only to cross-check
-against the live published descriptor.
-
-### 🛡️ Audited dependencies only
-
-The verifier uses exactly three audited crypto libraries and nothing else:
-
-- [`tweetnacl`](https://github.com/dchest/tweetnacl-js) — reference Ed25519
-- [`js-sha3`](https://github.com/emn178/js-sha3) — Keccak-256
-- [`bs58`](https://github.com/cryptocoinjs/bs58) — base58 encoding
-
-No build step. No bundler. No framework. Just 457 lines of readable Node.js you
-can audit in 10 minutes.
 
 ## The published signing key
 
@@ -171,8 +104,8 @@ served at `https://twzrd.xyz/r/<wallet>.json`:
 
 The signed payload is the compact JSON `{wallet, tier_at_mint, score_at_mint,
 verified_tx, behavior_proof, minted_at}` (exact key order). The `wallet` is the
-first signed field but is **not** stored in the anchor — it is the `<wallet>.json`
-filename / the cNFT leaf owner — so pass `--wallet` or keep the filename. The
+first signed field but is **not** stored in the anchor - it is the `<wallet>.json`
+filename / the cNFT leaf owner - so pass `--wallet` or keep the filename. The
 signing key (`2ELSDx...`) is **built in** to the verifier (pinned in the audited
 package); override with `--pubkey`, or fetch the published copy with `--fetch-key`.
 
@@ -193,7 +126,7 @@ npx twzrd-receipt-verifier $W.json --fetch-key
 The key is published, machine-readable, at `https://api.twzrd.xyz/v1/receipts/pubkey`
 (and `https://twzrd.xyz/.well-known/twzrd-receipt-pubkey`) with the full signing spec
 (`public_key`, `signed_fields`, `scheme`, `tree`). It must equal the built-in key **and**
-the on-chain verified creator of every cNFT in the tree — three independent sources.
+the on-chain verified creator of every cNFT in the tree - three independent sources.
 
 ```
 mode             : cNFT (Bubblegum anchor)
@@ -211,20 +144,23 @@ already proves `2ELSDx` authorship of the at-mint snapshot.
 
 ## Get a receipt to verify
 
-Any TWZRD V5/v6 receipt works. To mint a fresh one, pay the trust endpoint
-(x402, 0.05 USDC on Solana mainnet) with an x402 client that preserves TWZRD's
-sponsored fee-payer slot semantics.
-
-Current caveat (2026-06-23): `npx agentcash@latest fetch ...` is not a green
-TWZRD paid-trust repro. It failed closed with `payment_invalid` /
-`fee_payer_slot_already_signed`, and AgentCash balance stayed unchanged.
-
-Known-bad compatibility command:
+Free sample first — the signature is real, so this proves the whole verify path
+without paying or holding a wallet:
 
 ```bash
-npx agentcash@latest fetch https://intel.twzrd.xyz/v1/intel/trust/<PUBKEY> > resp.json
-# the receipt is the `twzrd_receipt` object in the response
+curl -s https://intel.twzrd.xyz/v1/receipts/example -o sample.json
+npx twzrd-receipt-verifier@1.2.2 sample.json \
+  --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf
 ```
+
+Live paid receipt: `GET https://intel.twzrd.xyz/v1/intel/trust/{pubkey}` (x402,
+0.05 USDC on Solana mainnet) with any x402-capable client — the receipt is the
+`twzrd_receipt` object in the response. Since 1.2.2 the verifier auto-unwraps
+`twzrd_receipt`, so the raw API response verifies as-is.
+
+This package is only the offline **verify** step of the trust loop. Free
+preflight, merchant cards, and discovery live on the remote MCP —
+`https://intel.twzrd.xyz/mcp` (23 tools, no wallet).
 
 The receipt object looks like:
 
@@ -307,9 +243,5 @@ Solana signature you can independently check for ground truth.
 You trust: the receipt you were given, the published public key (ideally pinned),
 and the crypto libraries (`PyNaCl`/libsodium, `pycryptodome`; `tweetnacl`,
 `js-sha3`). You do **not** trust TWZRD's API, database, or this repository's other
-code. Swap the libraries for your own if you prefer — the byte layout above is the
+code. Swap the libraries for your own if you prefer - the byte layout above is the
 whole spec.
-
-## License
-
-MIT — read the code, fork it, ship it. No strings attached.
