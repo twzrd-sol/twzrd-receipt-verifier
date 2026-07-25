@@ -1,5 +1,25 @@
 # Publishing the TWZRD receipt verifier
 
+> ## STOP — do not publish from this repository
+>
+> **This repo is an ARTIFACT MIRROR, not a publish source.** It is synced *from*
+> already-published npm/PyPI tarballs. The canonical source lives in the private
+> monorepo at `packages/twzrd-agent-intel/verifier/`. Publish from there.
+>
+> **Why this warning exists:** `1.2.3` was published from this repo on 2026-07-25
+> and shipped a verifier that could not verify cNFT receipts at all — this repo's
+> copy was 10,773 bytes with zero cNFT support, while the canonical source was
+> 22,090 bytes. Half the verifier silently vanished from npm and PyPI. It also
+> broke the package's offline guarantee by fetching a key over the network.
+> Superseded by `1.2.4`, published from the canonical source.
+>
+> Before any publish, sanity-check you are in the right tree:
+> ```bash
+> grep -c verifyCnft verify_twzrd_receipt.js   # must be > 0
+> wc -c verify_twzrd_receipt.js                # ~22k, not ~10k
+> ```
+> Then verify the packed artifact against a real receipt *before* pushing it live.
+
 The verifier is ready to publish to **PyPI** (Python) and **npm** (Node). The
 package metadata is committed; this is the operator's release runbook. The only
 steps that need credentials are the final `upload` / `publish`.
