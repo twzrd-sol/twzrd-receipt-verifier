@@ -9,15 +9,36 @@
 
 > **Zero-trust, offline-first. No API calls. No servers. No TWZRD code you didn't read.**
 
-**Hero quickstart — verify a receipt in one command:**
+**Hero quickstart — verify a real TWZRD receipt in one command.** No wallet, no
+signup, no API key. Copy-paste this and watch it print `VALID`:
 
 ```bash
-# AO-Receipt (trust-API): works immediately on any receipt JSON
-npx twzrd-receipt-verifier receipt.json --self-test
-
-# cNFT Receipt (genesis): fetch + verify a genesis compressed-NFT receipt
 W=zoz7neLHXoaLwNBuckSqNqaMsacpqJsphtFuNNpQyt3
-curl -s https://twzrd.xyz/r/$W.json | npx twzrd-receipt-verifier -
+curl -s https://twzrd.xyz/r/$W.json | npx twzrd-receipt-verifier - --wallet $W
+```
+
+```text
+mode             : cNFT (Bubblegum anchor)
+trusted pubkey   : 2ELSDxLkb7dYrN6EUG69tNtULAq4Fo7WPvXyrZPmuFif  [built-in genesis authority]
+wallet           : zoz7neLHXoaLwNBuckSqNqaMsacpqJsphtFuNNpQyt3  [source: --wallet]
+signature_valid  : true
+RESULT           : VALID (TWZRD-authored, untampered)
+```
+
+That output came from your machine, not ours. Nothing in the command trusts a
+TWZRD server — it fetches bytes, then checks an Ed25519 signature against a
+published key using audited crypto libraries.
+
+> **`--wallet` is required when piping.** A cNFT receipt's wallet is inside the
+> signed payload but not the anchor block, so it can't be inferred from stdin.
+> Save the file as `<wallet>.json` instead and the filename supplies it:
+> `curl -s https://twzrd.xyz/r/$W.json -o $W.json && npx twzrd-receipt-verifier $W.json`
+
+Other receipt families:
+
+```bash
+# AO-Receipt (paid trust API): works on any receipt JSON
+npx twzrd-receipt-verifier receipt.json --self-test
 ```
 
 ---
