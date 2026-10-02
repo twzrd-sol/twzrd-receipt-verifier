@@ -40,7 +40,7 @@ steps that need credentials are the final `upload` / `publish`.
 ```bash
 cd packages/twzrd-agent-intel/verifier
 python -m pip install --upgrade build twine
-python -m build                        # -> dist/twzrd_receipt_verifier-1.0.4{.tar.gz,-py3-none-any.whl}
+python -m build                        # -> dist/twzrd_receipt_verifier-1.4.4{.tar.gz,-py3-none-any.whl}
 python -m twine check dist/*           # metadata sanity
 # upload (token auth):
 TWINE_USERNAME=__token__ TWINE_PASSWORD=pypi-XXXX python -m twine upload dist/*
@@ -48,7 +48,7 @@ TWINE_USERNAME=__token__ TWINE_PASSWORD=pypi-XXXX python -m twine upload dist/*
 Smoke-test the published package in a clean env:
 ```bash
 python -m venv /tmp/vt && /tmp/vt/bin/pip install twzrd-receipt-verifier
-/tmp/vt/bin/twzrd-verify-receipt receipt.json --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf --self-test
+/tmp/vt/bin/twzrd-verify-receipt receipt.json --pubkey Ak5SQwHpuQAqU7ty7ZWX7qgF39A9yi72c22KNn8sHzvS --self-test
 ```
 
 ## 2. Node -> npm
@@ -60,18 +60,18 @@ npm publish --access public            # needs npm login / NPM_TOKEN
 ```
 Smoke-test:
 ```bash
-npx twzrd-receipt-verifier@latest receipt.json --pubkey 9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf --self-test
+npx twzrd-receipt-verifier@^1.4.0 receipt.json --pubkey Ak5SQwHpuQAqU7ty7ZWX7qgF39A9yi72c22KNn8sHzvS --self-test
 ```
 
 ## 3. After publishing
 - Add the install lines to the public docs / `/llms.txt` so agents discover it:
   `pip install twzrd-receipt-verifier` and `npx twzrd-receipt-verifier`.
-- Tag the release (e.g. `verifier-v1.0.4` for PyPI, `verifier-v1.0.5` for npm).
+- Tag the release (e.g. `verifier-v1.4.4` for both npm and PyPI).
 - Bump `version` in BOTH `pyproject.toml` and `package.json` for the next release.
 
 ## Notes
 - Crypto is in audited libs (PyNaCl/libsodium, pycryptodome; tweetnacl, js-sha3).
   Only base58 + the documented keccak-leaf layout are embedded. See `README.md`.
-- The published public key (`9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf`,
-  key_id `twzrd-receipt-ed25519-v1`) is also at
+- The current published public key (`Ak5SQwHpuQAqU7ty7ZWX7qgF39A9yi72c22KNn8sHzvS`,
+  key_id `twzrd-receipt-ed25519-v2`) is also at
   `https://intel.twzrd.xyz/.well-known/x402` for fetch-mode verification.
