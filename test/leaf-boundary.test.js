@@ -2,7 +2,7 @@
 /**
  * Leaf-boundary mutations for the standalone JS verifier (parity with the Python verifier).
  *
- *  * Same mutation classes as the SDK leaf-boundary suite. A `_V7`
+ * Same mutation classes as the SDK leaf-boundary suite. A `_V7`
  * substring must not hide freshness from classifiers unless the hasher
  * actually bound it (exact TWZRD:AO_REPUTATION_RECEIPT_V7).
  *
