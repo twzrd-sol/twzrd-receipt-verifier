@@ -1,0 +1,39 @@
+{
+  "example": true,
+  "note": "Illustrative SAMPLE of a signed V6 receipt (Solana null address, sample score, labeled settlement). NOT a receipt from your payment and NOT a real attestation for any wallet. The signature is real, so it verifies VALID \u2014 that proves the mechanism before you spend. For a live receipt about a real wallet, pay GET /v1/intel/trust/{pubkey} (0.05 USDC).",
+  "verify": {
+    "save_then_run": "save the twzrd_receipt object to receipt.json, then: npx twzrd-receipt-verifier@^1.4.0 receipt.json",
+    "expected": "VALID (TWZRD-authored, untampered)",
+    "key_source": "https://intel.twzrd.xyz/.well-known/twzrd-receipt-pubkey",
+    "http_verify": "POST https://intel.twzrd.xyz/v1/receipts/verify (body: the twzrd_receipt object itself, i.e. {\"leaf\": ..., \"preimage\": {...all fields shown below...}, \"signature\": ..., \"signing_pubkey\": ...} \u2014 preimage must be the FULL nested object, not just leaf+signature+signing_pubkey; the {\"twzrd_receipt\": ...} envelope is also accepted)",
+    "curl_verify": "curl -s -X POST https://intel.twzrd.xyz/v1/receipts/verify -H 'Content-Type: application/json' -d '{\"version\": \"v6\", \"leaf\": \"0x696bab7f6778236b86c8a88cd537924813331cceaccc99b0a1a4b2eaca934e30\", \"preimage\": {\"domain\": \"TWZRD:AO_REPUTATION_RECEIPT_V6\", \"agent_id\": \"11111111111111111111111111111111\", \"score\": 72, \"attention_score\": null, \"confidence_bps\": 8000, \"timestamp_unix\": 1748736000, \"payer\": \"11111111111111111111111111111111\", \"settlement_anchor\": \"63656970742d6e6f2d7265616c2d736574746c656d656e742d74782d30303031\", \"version\": \"v6\", \"reputation_score\": null, \"reputation_confidence_bps\": null, \"reputation_score_version\": \"intel_renorm_v1_1\", \"reputation_feature_window_start_unix\": null, \"reputation_data_quality\": \"example\", \"recheck_after_unix\": 1748995200, \"staleness_days\": 3, \"score_decay_model\": \"step:<=7d=1.0,<=30d=0.8,<=90d=0.5,>90d=0.25\", \"settlement_tx\": \"EXAMPLE-sample-receipt-no-real-settlement-tx-0001\"}, \"signature\": \"5QpubnEPM1ryG33bii7uN7UmNxngszBn96qfqs2PrLxHLhKrfPT4qoVYQyGSFqSxFt7sZfpxb9VM52fdmQdAU8TX\", \"signing_pubkey\": \"9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf\", \"key_id\": \"twzrd-receipt-ed25519-v1\", \"signing_alg\": \"ed25519\"}'"
+  },
+  "twzrd_receipt": {
+    "version": "v6",
+    "leaf": "0x696bab7f6778236b86c8a88cd537924813331cceaccc99b0a1a4b2eaca934e30",
+    "preimage": {
+      "domain": "TWZRD:AO_REPUTATION_RECEIPT_V6",
+      "agent_id": "11111111111111111111111111111111",
+      "score": 72,
+      "attention_score": null,
+      "confidence_bps": 8000,
+      "timestamp_unix": 1748736000,
+      "payer": "11111111111111111111111111111111",
+      "settlement_anchor": "63656970742d6e6f2d7265616c2d736574746c656d656e742d74782d30303031",
+      "version": "v6",
+      "reputation_score": null,
+      "reputation_confidence_bps": null,
+      "reputation_score_version": "intel_renorm_v1_1",
+      "reputation_feature_window_start_unix": null,
+      "reputation_data_quality": "example",
+      "recheck_after_unix": 1748995200,
+      "staleness_days": 3,
+      "score_decay_model": "step:<=7d=1.0,<=30d=0.8,<=90d=0.5,>90d=0.25",
+      "settlement_tx": "EXAMPLE-sample-receipt-no-real-settlement-tx-0001"
+    },
+    "signature": "5QpubnEPM1ryG33bii7uN7UmNxngszBn96qfqs2PrLxHLhKrfPT4qoVYQyGSFqSxFt7sZfpxb9VM52fdmQdAU8TX",
+    "signing_pubkey": "9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf",
+    "key_id": "twzrd-receipt-ed25519-v1",
+    "signing_alg": "ed25519"
+  }
+}

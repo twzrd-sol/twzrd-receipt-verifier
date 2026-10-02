@@ -1,7 +1,7 @@
 {
   "name": "twzrd-receipt-verifier",
-  "version": "1.2.4",
-  "description": "Standalone offline verifier for TWZRD receipts: AO-Receipt V5/V6 (keccak256 leaf) and genesis cNFT receipts (Ed25519 over compact JSON). No trust in TWZRD servers or code.",
+  "version": "1.4.4",
+  "description": "Standalone offline verifier for TWZRD receipts: AO-Receipt V5/V6/V7 (keccak256 leaf; V7 also binds the freshness triple) and genesis cNFT receipts (Ed25519 over compact JSON). No trust in TWZRD servers or code.",
   "keywords": [
     "twzrd",
     "x402",
@@ -26,6 +26,7 @@
   },
   "license": "MIT",
   "author": "TWZRD",
+  "main": "verify_twzrd_receipt.js",
   "bin": {
     "verify-twzrd-receipt": "./verify_twzrd_receipt.js"
   },
@@ -35,7 +36,8 @@
     "LICENSE"
   ],
   "scripts": {
-    "verify": "node verify_twzrd_receipt.js"
+    "verify": "node verify_twzrd_receipt.js",
+    "test": "node --test test/*.test.js"
   },
   "engines": {
     "node": ">=16"
