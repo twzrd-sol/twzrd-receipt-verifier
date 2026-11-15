@@ -40,7 +40,7 @@ steps that need credentials are the final `upload` / `publish`.
 ```bash
 cd packages/twzrd-agent-intel/verifier
 python -m pip install --upgrade build twine
-python -m build                        # -> dist/twzrd_receipt_verifier-1.4.4{.tar.gz,-py3-none-any.whl}
+python -m build                        # -> dist/twzrd_receipt_verifier-1.4.5{.tar.gz,-py3-none-any.whl}
 python -m twine check dist/*           # metadata sanity
 # upload (token auth):
 TWINE_USERNAME=__token__ TWINE_PASSWORD=pypi-XXXX python -m twine upload dist/*
@@ -66,7 +66,7 @@ npx twzrd-receipt-verifier@^1.4.0 receipt.json --pubkey Ak5SQwHpuQAqU7ty7ZWX7qgF
 ## 3. After publishing
 - Add the install lines to the public docs / `/llms.txt` so agents discover it:
   `pip install twzrd-receipt-verifier` and `npx twzrd-receipt-verifier`.
-- Tag the release (e.g. `verifier-v1.4.4` for both npm and PyPI).
+- Tag the release (e.g. `verifier-v1.4.5` for both npm and PyPI).
 - Bump `version` in BOTH `pyproject.toml` and `package.json` for the next release.
 
 ## Notes

@@ -92,6 +92,18 @@ const MAX_READINESS_LIST_ITEMS = 64;
 const LEAF_DIGEST_LEN = 32;
 const PUBKEY_LEN = 32;
 const SIGNATURE_LEN = 64;
+// Ed25519 group order (RFC 8032). tweetnacl accepts a signature whose S is S + L
+// (another spelling of the same signature); libsodium, and so the Python
+// verifier, refuses it. ed25519Verify refuses it here too.
+const ED25519_L = (1n << 252n) + 27742317777372353535851937790883648493n;
+// Every key a V7 preimage may carry: the issuer's ReceiptPreimage fields. Any
+// other key is outside the leaf, so editing it would leave the receipt valid.
+const V7_PREIMAGE_FIELDS = new Set([
+  'domain', 'agent_id', 'score', 'attention_score', 'confidence_bps', 'timestamp_unix', 'payer',
+  'settlement_anchor', 'version', 'reputation_score', 'reputation_confidence_bps',
+  'reputation_score_version', 'reputation_feature_window_start_unix', 'reputation_data_quality',
+  'recheck_after_unix', 'staleness_days', 'score_decay_model', 'settlement_tx',
+]);
 const MAX_AGENT_ID_UTF8 = 256;
 const MAX_PROVENANCE_STR_UTF8 = 256;
 // When max_age is set, also reject timestamps too far in the future (Python
@@ -219,7 +231,11 @@ function formatBoundFreshnessCard(receipt, res) {
   const freshnessBound = !!res.valid && res.freshness_unauthenticated === false;
   const lines = [];
   for (const name of bound) {
-    lines.push(`BOUND     ${name}   covered by Ed25519 over the signed payload`);
+    // The leaf hashes the last 32 UTF-8 bytes of settlement_tx (anchor32), so
+    // the characters before them are not covered.
+    const partial = name === 'settlement_tx' && typeof pre.settlement_tx === 'string'
+      && Buffer.byteLength(pre.settlement_tx, 'utf8') > 32;
+    lines.push(`BOUND     ${name}   ${partial ? 'last 32 bytes ' : ''}covered by Ed25519 over the signed payload`);
   }
   for (const name of fresh) {
     const note = freshnessBound
@@ -238,6 +254,18 @@ function formatBoundFreshnessCard(receipt, res) {
 }
 
 function b58decode(s) { return Buffer.from(bs58.decode(s)); }
+
+// nacl.sign.detached.verify, then a refusal of a signature whose S (its last 32
+// bytes, little-endian) is not below the group order. tweetnacl runs first, so
+// a key or signature of the wrong size throws its own error, as before.
+function ed25519Verify(message, signature, pubkey) {
+  if (!nacl.sign.detached.verify(new Uint8Array(message), new Uint8Array(signature), new Uint8Array(pubkey))) {
+    return false;
+  }
+  let s = 0n;
+  for (let i = SIGNATURE_LEN - 1; i >= 32; i--) s = (s << 8n) | BigInt(signature[i]);
+  return s < ED25519_L;
+}
 
 function u16le(n) { const b = Buffer.alloc(2); b.writeUInt16LE(n & 0xffff, 0); return b; }
 function u64le(n) { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n), 0); return b; }
@@ -300,6 +328,7 @@ function recomputeLeaf(pre, anchorOverride) {
   if (pre.domain === REPUTATION_V7_DOMAIN) {
     validateV7Base(pre);
     const fresh = canonicalFreshnessV7(pre);
+    validateV7Preimage(pre);
     const anchor = pre.settlement_tx ? anchor32(pre.settlement_tx) : Buffer.from(pre.settlement_anchor || '', 'hex');
     if (anchor.length !== 32) throw new Error('V7 settlement_anchor must be 32 bytes');
     const base = recomputeLeaf({...pre, domain: REPUTATION_V6_DOMAIN}, anchor);
@@ -363,6 +392,31 @@ function validateV7Base(pre) {
   // bytes, matching V5/V6 and the issuer. A strict decode here made marker-payer
   // V7 receipts unverifiable in JS while Python accepted them.
   if (typeof pre.payer !== 'string' || !pre.payer || Buffer.byteLength(pre.payer, 'utf8') > 256) throw new Error('invalid V7 payer');
+}
+
+// One reading per signed V7 receipt. A key the leaf does not hash must be
+// absent, and settlement_anchor, which the leaf hashes only when settlement_tx
+// is empty, must be the anchor the issuer derives from settlement_tx (32 zero
+// bytes when there is none). Without this, editing an unhashed key, or
+// re-spelling the anchor (case, trailing junk, an array of byte values, a
+// non-ASCII character Node's hex decoder reads as a digit), left the receipt
+// valid. settlement_tx itself is bound only through its last 32 bytes.
+function validateV7Preimage(pre) {
+  const unbound = Object.keys(pre).filter((name) => !V7_PREIMAGE_FIELDS.has(name)).sort();
+  if (unbound.length) throw new Error(`V7 preimage has fields the leaf does not bind: ${unbound.join(', ')}`);
+  if (pre.attention_score !== null && pre.attention_score !== undefined) {
+    throw new Error('V7 attention_score must be null: the reputation leaf does not bind it');
+  }
+  const tx = pre.settlement_tx;
+  if (tx !== null && tx !== undefined && typeof tx !== 'string') throw new Error('V7 settlement_tx must be a string or null');
+  if (typeof tx === 'string' && Buffer.from(tx, 'utf8').toString('utf8') !== tx) {
+    throw new Error('V7 settlement_tx must be well-formed UTF-8');
+  }
+  const anchor = pre.settlement_anchor;
+  if (typeof anchor !== 'string' || !/^[0-9a-f]{64}$/.test(anchor)) {
+    throw new Error('V7 settlement_anchor must be 64 lowercase hex characters');
+  }
+  if (anchor !== anchor32(tx).toString('hex')) throw new Error('V7 settlement_anchor does not match settlement_tx');
 }
 
 function fetchPublishedPubkey(baseUrl) {
@@ -611,9 +665,7 @@ function verifyReadiness(receipt, trustedPubkey, opts) {
     const candidates = embedded ? [embedded] : keySet.keys;
     out.signature_valid = candidates.some((key) => {
       const pkRaw = b58decode(key);
-      return pkRaw.length === PUBKEY_LEN && nacl.sign.detached.verify(
-        new Uint8Array(recomputed), new Uint8Array(sigRaw), new Uint8Array(pkRaw),
-      );
+      return pkRaw.length === PUBKEY_LEN && ed25519Verify(recomputed, sigRaw, pkRaw);
     });
   } catch (e) {
     out.errors.push('signature check error: ' + e.message);
@@ -668,6 +720,11 @@ function verify(receipt, trustedPubkey, opts) {
   out.freshness_unauthenticated = classified.freshness_unauthenticated;
   if (pre.domain === REPUTATION_V7_DOMAIN && (receipt.kind !== 'twzrd_reputation_receipt_v7' || receipt.version !== 'v7' || pre.version !== 'v7')) {
     out.errors.push('V7 kind/version mismatch');
+    return out;
+  }
+  if (pre.domain === REPUTATION_V7_DOMAIN && receipt.signing_alg !== undefined && receipt.signing_alg !== null
+      && receipt.signing_alg !== 'ed25519') {
+    out.errors.push('V7 signing_alg must be ed25519');
     return out;
   }
 
@@ -760,9 +817,7 @@ function verify(receipt, trustedPubkey, opts) {
     const candidates = embedded ? [embedded] : keySet.keys;
     out.signature_valid = candidates.some((key) => {
       const pkRaw = b58decode(key);
-      return pkRaw.length === PUBKEY_LEN && nacl.sign.detached.verify(
-        new Uint8Array(recomputed), new Uint8Array(sigRaw), new Uint8Array(pkRaw),
-      );
+      return pkRaw.length === PUBKEY_LEN && ed25519Verify(recomputed, sigRaw, pkRaw);
     });
   } catch (e) {
     out.errors.push('signature check error: ' + e.message);
@@ -868,8 +923,7 @@ function verifyCnft(receipt, trustedPubkey, wallet) {
   try { pk = b58decode(trustedPubkey); }
   catch (e) { out.errors.push('trusted pubkey not base58: ' + e.message); return out; }
   try {
-    out.signature_valid = nacl.sign.detached.verify(
-      new Uint8Array(msg), new Uint8Array(sig), new Uint8Array(pk));
+    out.signature_valid = ed25519Verify(msg, sig, pk);
   } catch (e) { out.errors.push('signature check error: ' + e.message); return out; }
   if (!out.signature_valid) {
     out.errors.push('signature not valid for the trusted key (payload tampered, or wrong --wallet / --pubkey)');
@@ -1040,7 +1094,8 @@ cNFT key source:      ${DEFAULT_CNFT_BASE_URL}/v1/receipts/pubkey`;
 // Export the pure verifiers for tests / programmatic use. Only run the CLI when
 // invoked directly (so `require()` from the test suite does not trigger main()).
 module.exports = {
-  REPUTATION_V7_DOMAIN, canonicalFreshnessV7,
+  REPUTATION_V7_DOMAIN, canonicalFreshnessV7, validateV7Preimage, V7_PREIMAGE_FIELDS,
+  ed25519Verify, ED25519_L,
   verify, recomputeLeaf,
   verifyCnft, cnftSignedPayload, isCnftReceipt, resolveWallet,
   fetchCnftPubkey,

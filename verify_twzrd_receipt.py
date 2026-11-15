@@ -53,6 +53,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 import urllib.request
 
@@ -99,6 +100,16 @@ V5_PREFIX_BOUND_FIELDS = (
     "settlement_tx",
     "settlement_anchor",
 )
+
+# Every key a V7 preimage may carry: the issuer's ReceiptPreimage fields. Any
+# other key is outside the leaf, so editing it would leave the receipt valid.
+V7_PREIMAGE_FIELDS = frozenset((
+    "domain", "agent_id", "score", "attention_score", "confidence_bps", "timestamp_unix", "payer",
+    "settlement_anchor", "version", "reputation_score", "reputation_confidence_bps",
+    "reputation_score_version", "reputation_feature_window_start_unix", "reputation_data_quality",
+    "recheck_after_unix", "staleness_days", "score_decay_model", "settlement_tx",
+))
+_LOWER_HEX_64 = re.compile(r"[0-9a-f]{64}")
 
 
 def hashed_leaf_binding(pre: dict) -> str:
@@ -215,6 +226,33 @@ def canonical_freshness_v7(pre: dict) -> bytes:
                       sort_keys=True, separators=(",", ":")).encode()
 
 
+def validate_v7_preimage(pre: dict) -> None:
+    """One reading per signed V7 receipt (mirrors the JS validateV7Preimage).
+
+    A key the leaf does not hash must be absent, and settlement_anchor, which
+    the leaf hashes only when settlement_tx is empty, must be the anchor the
+    issuer derives from settlement_tx (32 zero bytes when there is none).
+    Without this, editing an unhashed key, or re-spelling the anchor (case,
+    whitespace between byte pairs), left the receipt valid. settlement_tx
+    itself is bound only through its last 32 bytes.
+    """
+    unbound = sorted(name for name in pre if name not in V7_PREIMAGE_FIELDS)
+    if unbound:
+        raise ValueError(f"V7 preimage has fields the leaf does not bind: {', '.join(unbound)}")
+    if pre.get("attention_score") is not None:
+        raise ValueError("V7 attention_score must be null: the reputation leaf does not bind it")
+    tx = pre.get("settlement_tx")
+    if tx is not None and not isinstance(tx, str):
+        raise ValueError("V7 settlement_tx must be a string or null")
+    if tx is not None and tx.encode("utf-8", "surrogatepass").decode("utf-8", "replace") != tx:
+        raise ValueError("V7 settlement_tx must be well-formed UTF-8")
+    anchor = pre.get("settlement_anchor")
+    if not isinstance(anchor, str) or not _LOWER_HEX_64.fullmatch(anchor):
+        raise ValueError("V7 settlement_anchor must be 64 lowercase hex characters")
+    if anchor != _anchor32(tx).hex():
+        raise ValueError("V7 settlement_anchor does not match settlement_tx")
+
+
 def recompute_leaf(pre: dict, anchor_override: bytes | None = None) -> bytes:
     if pre.get("domain") == REPUTATION_V7_DOMAIN.decode():
         for name, lo, hi, required in (
@@ -244,6 +282,7 @@ def recompute_leaf(pre: dict, anchor_override: bytes | None = None) -> bytes:
         if not isinstance(payer_v7, str) or not payer_v7 or len(payer_v7.encode()) > 256:
             raise ValueError("invalid V7 payer")
         fresh = canonical_freshness_v7(pre)
+        validate_v7_preimage(pre)
         anchor = _anchor32(pre["settlement_tx"]) if pre.get("settlement_tx") else bytes.fromhex(pre["settlement_anchor"])
         if len(anchor) != 32:
             raise ValueError("V7 settlement_anchor must be 32 bytes")
@@ -318,6 +357,9 @@ def verify(receipt: dict, trusted_pubkey_b58: str, max_age_seconds: int | None =
         receipt.get("kind") != "twzrd_reputation_receipt_v7" or receipt.get("version") != "v7" or pre.get("version") != "v7"
     ):
         out["errors"].append("V7 kind/version mismatch")
+        return out
+    if pre.get("domain") == REPUTATION_V7_DOMAIN.decode() and receipt.get("signing_alg") not in (None, "ed25519"):
+        out["errors"].append("V7 signing_alg must be ed25519")
         return out
     leaf_hex = (receipt.get("leaf") or "").lower().removeprefix("0x")
 
@@ -454,8 +496,12 @@ def format_bound_freshness_card(receipt: dict, res: dict) -> str:
     freshness_bound = bool(res.get("valid")) and res.get("freshness_unauthenticated") is False
     lines = []
     for name in bound:
+        # The leaf hashes the last 32 UTF-8 bytes of settlement_tx (_anchor32),
+        # so the characters before them are not covered.
+        tx = pre.get("settlement_tx")
+        partial = name == "settlement_tx" and isinstance(tx, str) and len(tx.encode("utf-8", "surrogatepass")) > 32
         lines.append(
-            f"BOUND     {name}   covered by Ed25519 over the signed payload"
+            f"BOUND     {name}   {'last 32 bytes ' if partial else ''}covered by Ed25519 over the signed payload"
         )
     for name in fresh:
         if freshness_bound:

@@ -314,9 +314,13 @@ leaf_v6   = keccak256(domain_v6 || agent_id || score || confidence_bps || timest
 # --- V7 (domain TWZRD:AO_REPUTATION_RECEIPT_V7, reputation only): the V6 leaf is rebuilt under the V6 domain
 #     bytes, then wrapped with the canonical freshness JSON (compact, keys sorted). Constraints checked before
 #     hashing: recheck_after_unix == timestamp_unix + staleness_days * 86400; staleness_days <= 65535;
-#     score_decay_model 1..256 printable ASCII; when settlement_tx is absent, settlement_anchor is HEX-decoded
-#     and must be exactly 32 bytes (not the text rule above). The envelope must also carry
-#     kind = "twzrd_reputation_receipt_v7", version = "v7" and preimage.version = "v7" (compared, not hashed).
+#     score_decay_model 1..256 printable ASCII. Since 1.4.5 a V7 preimage also has one reading: every key is
+#     a field the issuer writes; attention_score is null or absent; settlement_tx is a well-formed string or
+#     null; settlement_anchor is the 64 lowercase hex characters of the anchor derived from settlement_tx by
+#     the rule above (64 zeros when settlement_tx is empty or absent), so the anchor the leaf hashes is the
+#     same whichever field it is read from. The envelope must also carry kind = "twzrd_reputation_receipt_v7",
+#     version = "v7" and preimage.version = "v7" (compared, not hashed), and signing_alg, when present,
+#     must be "ed25519".
 fresh     = {"recheck_after_unix":N,"score_decay_model":"S","staleness_days":D}
 leaf_v7   = keccak256("TWZRD:AO_REPUTATION_RECEIPT_V7" || leaf_v6 || u32_le(len(fresh)) || fresh)
 
@@ -326,10 +330,17 @@ signature = Ed25519_sign(receipt_signing_key, leaf_bytes)
 The verifier:
 1. recomputes `leaf` from the preimage and compares it to `receipt.leaf`,
 2. confirms `receipt.signing_pubkey` (if present) equals the trusted key,
-3. verifies the Ed25519 `signature` over the 32 leaf bytes against the trusted key.
+3. verifies the Ed25519 `signature` over the 32 leaf bytes against the trusted key,
+   refusing a signature whose scalar S is not below the group order (RFC 8032).
 
 `VALID` requires all three. The `settlement_tx` in the preimage is an on-chain
-Solana signature you can independently check for ground truth.
+Solana signature you can independently check for ground truth. The leaf binds
+only its last 32 UTF-8 bytes (the anchor above), so a `VALID` receipt does not
+attest the characters before them: never base a decision on that prefix. The
+card says `last 32 bytes covered` when `settlement_tx` is longer than that.
+To deduplicate receipts or key a replay table, use `settlement_anchor`, never
+`settlement_tx`: a copy with a rewritten prefix still verifies and carries the
+same anchor. An all-zero anchor means the leaf binds no settlement.
 
 ## BOUND vs FRESHNESS: what `VALID` does and does not attest
 
