@@ -52,6 +52,22 @@ const LEGACY_RECEIPT_PUBKEYS = [
   '9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf',
   '96X11cfazxwYpg2g1UodocVX9ZYpXEowDZNtKv2xRVhc',
 ];
+// Last instant a legacy-signed receipt is accepted: 2026-08-28T23:59:59Z, the
+// end of the day the v2 key replaced the second legacy key in the issuer
+// source (2026-08-28T01:48:06Z). The first production signature under v2 on
+// the public record is the 2026-08-28 ledger attestation, created
+// 2026-08-29T04:07:51Z; production switched between those two instants.
+const LEGACY_RECEIPT_KEY_CUTOFF_UNIX = 1787961599;
+const LEGACY_KEY_REFUSAL = 'legacy receipt key is accepted only for V5/V6 receipts dated at or before the key rotation';
+
+// A legacy key may verify only a V5 or V6 leaf whose signed timestamp_unix is
+// at or before the cutoff. V7 and later are checked against the current key.
+function legacyKeyAllowed(leafVersion, timestampUnix) {
+  return (leafVersion === 'v5' || leafVersion === 'v6')
+    && Number.isSafeInteger(timestampUnix)
+    && timestampUnix >= 0
+    && timestampUnix <= LEGACY_RECEIPT_KEY_CUTOFF_UNIX;
+}
 const KECCAK_EMPTY = 'c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470';
 // Genesis cNFT receipt authority (airship). Baked in as the most paranoid form of
 // out-of-band pinning: the key ships in this audited package, never fetched live.
@@ -204,16 +220,28 @@ function cardVerdict(receipt, res) {
   return 'invalid';
 }
 
+// Whether this verification proves the freshness triple: the receipt verified
+// (leaf and signature) and its freshness is inside the leaf, which is V7 only.
+// Read from the verification result, never from the receipt JSON. A missing
+// flag means unauthenticated (do not treat `!undefined` as bound), so a spoofed
+// _V7 domain on a V5/V6 signature and every INVALID receipt read false.
+// Mirrors Python freshness_leaf_bound().
+function freshnessLeafBound(res) {
+  return !!res && !!res.valid && res.freshness_unauthenticated === false;
+}
+
 // Consumption bits. Never read trusted_* from the receipt JSON.
-// Mirrors Python format_trusted_bits(). Constant false on V5, V6 and genuine V7
-// alike: V7 issuance is live (free sample + paid /trust; no external buyer has
-// paid for a V7 receipt yet) but these are consumption bits, not a crypto
-// readout; trusted_due is never computed here.
-function formatTrustedBits(_receipt, _res) {
+// Mirrors Python format_trusted_bits(). trusted_due and trusted_allow are
+// constant false on V5, V6 and V7 alike: nothing here compares now to
+// recheck_after_unix or grants a spend. freshness_bound is the one line that
+// follows the verification: it says what the card's FRESHNESS lines say, so it
+// is true only on a V7 receipt this run verified. It does not say the recheck
+// date is still ahead.
+function formatTrustedBits(_receipt, res) {
   return [
     'trusted_due      : false',
     'trusted_allow    : false',
-    'freshness_bound  : false',
+    freshnessLeafBound(res) ? 'freshness_bound  : true' : 'freshness_bound  : false',
   ].join('\n');
 }
 
@@ -226,9 +254,9 @@ function formatBoundFreshnessCard(receipt, res) {
   const bound = boundFieldNames(pre, isV6);
   const fresh = freshnessFieldNames(pre);
   // Schema coverage is not a consumption allow. Only a valid verify whose
-  // freshness is actually leaf-bound may claim the V7 note.
-  // Missing flag means unauthenticated (do not treat `!undefined` as bound).
-  const freshnessBound = !!res.valid && res.freshness_unauthenticated === false;
+  // freshness is actually leaf-bound may claim the V7 note. The trusted-bits
+  // block reads the same function, so the two cannot disagree.
+  const freshnessBound = freshnessLeafBound(res);
   const lines = [];
   for (const name of bound) {
     // The leaf hashes the last 32 UTF-8 bytes of settlement_tx (anchor32), so
@@ -580,7 +608,7 @@ function isReadinessReceipt(receipt) {
   return KNOWN_READINESS_DOMAINS.has(String(pre.domain || ''));
 }
 
-function receiptKeyCandidates(trustedPubkey, keyId) {
+function receiptKeyCandidates(trustedPubkey, keyId, legacyOk) {
   if (keyId && keyId !== CURRENT_RECEIPT_SIGNING_KEY_ID && keyId !== LEGACY_RECEIPT_SIGNING_KEY_ID) {
     return { keys: [], error: `unknown receipt signing key_id ${keyId}` };
   }
@@ -590,8 +618,10 @@ function receiptKeyCandidates(trustedPubkey, keyId) {
     return { keys: [trustedPubkey] };
   }
   if (keyId === CURRENT_RECEIPT_SIGNING_KEY_ID) return { keys: [trustedPubkey] };
-  if (keyId === LEGACY_RECEIPT_SIGNING_KEY_ID) return { keys: LEGACY_RECEIPT_PUBKEYS };
-  if (!keyId) return { keys: [trustedPubkey, ...LEGACY_RECEIPT_PUBKEYS] };
+  if (keyId === LEGACY_RECEIPT_SIGNING_KEY_ID) {
+    return legacyOk === true ? { keys: LEGACY_RECEIPT_PUBKEYS } : { keys: [], error: LEGACY_KEY_REFUSAL };
+  }
+  if (!keyId) return { keys: legacyOk === true ? [trustedPubkey, ...LEGACY_RECEIPT_PUBKEYS] : [trustedPubkey] };
   return { keys: [], error: `unknown receipt signing key_id ${keyId}` };
 }
 
@@ -607,6 +637,11 @@ function verifyReadiness(receipt, trustedPubkey, opts) {
   };
   const pre = (receipt && receipt.preimage) || {};
   const leafHex = String((receipt && receipt.leaf) || '').toLowerCase().replace(/^0x/, '');
+  if (receipt && receipt.leaf !== undefined && receipt.leaf !== null && typeof receipt.leaf !== 'string') {
+    out.errors.push('leaf must be a string');
+    out.valid = false;
+    return out;
+  }
 
   if (!KNOWN_READINESS_DOMAINS.has(String(pre.domain || ''))) {
     out.errors.push(`unknown or non-canonical readiness domain in preimage: ${JSON.stringify(String(pre.domain || ''))}`);
@@ -638,7 +673,9 @@ function verifyReadiness(receipt, trustedPubkey, opts) {
     return out;
   }
   const embedded = receipt.signing_pubkey;
-  const keySet = receiptKeyCandidates(trustedPubkey, receipt.key_id);
+  const keySet = receiptKeyCandidates(
+    trustedPubkey, receipt.key_id, legacyKeyAllowed(out.leaf_version, pre.timestamp_unix),
+  );
   if (keySet.error) {
     out.errors.push(keySet.error);
     out.valid = false;
@@ -718,6 +755,10 @@ function verify(receipt, trustedPubkey, opts) {
   out.leaf_version = classified.leaf_version;
   out.unauthenticated_fields = classified.unauthenticated_fields;
   out.freshness_unauthenticated = classified.freshness_unauthenticated;
+  if (receipt.leaf !== undefined && receipt.leaf !== null && typeof receipt.leaf !== 'string') {
+    out.errors.push('leaf must be a string');
+    return out;
+  }
   if (pre.domain === REPUTATION_V7_DOMAIN && (receipt.kind !== 'twzrd_reputation_receipt_v7' || receipt.version !== 'v7' || pre.version !== 'v7')) {
     out.errors.push('V7 kind/version mismatch');
     return out;
@@ -783,7 +824,9 @@ function verify(receipt, trustedPubkey, opts) {
   }
 
   const embedded = receipt.signing_pubkey;
-  const keySet = receiptKeyCandidates(trustedPubkey, receipt.key_id);
+  const keySet = receiptKeyCandidates(
+    trustedPubkey, receipt.key_id, legacyKeyAllowed(out.leaf_version, pre.timestamp_unix),
+  );
   if (keySet.error) {
     out.errors.push(keySet.error);
     out.signature_valid = false;
@@ -1101,13 +1144,13 @@ module.exports = {
   fetchCnftPubkey,
   DEFAULT_CNFT_PUBKEY, DEFAULT_CNFT_BASE_URL, CNFT_SIGNED_FIELDS,
   CURRENT_RECEIPT_SIGNING_KEY_ID, LEGACY_RECEIPT_SIGNING_KEY_ID,
-  CURRENT_RECEIPT_PUBKEY, LEGACY_RECEIPT_PUBKEYS,
+  CURRENT_RECEIPT_PUBKEY, LEGACY_RECEIPT_PUBKEYS, LEGACY_RECEIPT_KEY_CUTOFF_UNIX,
   KNOWN_RECEIPT_DOMAINS,
   REPUTATION_V5_DOMAIN, ATTENTION_V5_DOMAIN, REPUTATION_V6_DOMAIN, ATTENTION_V6_DOMAIN,
   FRESHNESS_UNAUTHENTICATED_FIELDS, REPUTATION_PROVENANCE_FIELDS, unauthenticatedFields,
   hashedLeafBinding, classifyLeafBinding,
   V5_PREFIX_BOUND_FIELDS, boundFieldNames, freshnessFieldNames, cardVerdict,
-  formatBoundFreshnessCard, formatTrustedBits,
+  formatBoundFreshnessCard, formatTrustedBits, freshnessLeafBound,
   verifyReadiness, recomputeReadinessLeaf, isReadinessReceipt,
   READINESS_V1_DOMAIN, KNOWN_READINESS_DOMAINS, READINESS_BASIS,
   LEAF_DIGEST_LEN, PUBKEY_LEN, SIGNATURE_LEN,

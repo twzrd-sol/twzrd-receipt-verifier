@@ -674,17 +674,23 @@ test('boundFieldNames excludes freshness fields and picks the anchor that fed th
   assert.deepEqual(freshnessFieldNames(pre), [...FRESH_FIELDS]);
 });
 
-test('formatTrustedBits stays false and ignores preimage trusted_allow', () => {
+test('formatTrustedBits stays false on a verified V6 receipt and ignores preimage trusted_allow', () => {
   const receipt = loadV6Example();
   receipt.preimage.trusted_allow = true;
   receipt.preimage.trusted_due = true;
   receipt.preimage.freshness_bound = true;
-  const bits = formatTrustedBits(receipt, { valid: true, freshness_unauthenticated: false });
-  assert.equal(bits, [
+  const res = verify(receipt, receipt.signing_pubkey);
+  assert.equal(res.valid, true);
+  assert.equal(res.freshness_unauthenticated, true);
+  const allFalse = [
     'trusted_due      : false',
     'trusted_allow    : false',
     'freshness_bound  : false',
-  ].join('\n'));
+  ].join('\n');
+  assert.equal(formatTrustedBits(receipt, res), allFalse);
+  // The bits come from the verification result. With none, everything is false.
+  assert.equal(formatTrustedBits(receipt), allFalse);
+  assert.equal(formatTrustedBits(), allFalse);
 });
 
 test('spoofed V7 domain does not claim leaf-bound freshness on an invalid card', () => {
