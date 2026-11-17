@@ -1,0 +1,762 @@
+{
+  "description": "Edits to a signed V7 receipt and the verdict every TWZRD V7 verifier must reach. Each test signs base[case.base] with its own test key, applies the edits in order (set or delete at a path; s_plus_l adds the group order L to the signature's S), then verifies. error is a substring of one of the verifier's error messages. The last case pins a protocol limit: V7 binds only the last 32 UTF-8 bytes of settlement_tx.",
+  "base": {
+    "tx": {
+      "domain": "TWZRD:AO_REPUTATION_RECEIPT_V7",
+      "agent_id": "34MTPJ73pzFQK8kDBbX8ShiSKzviouvtZmZxzK7KirjN",
+      "score": 67,
+      "attention_score": null,
+      "confidence_bps": 8000,
+      "timestamp_unix": 1750000000,
+      "payer": "2kHuoFtsKkrGXqBxchsf4oiMcnCoeHnxEz79uF8A5cWL",
+      "settlement_anchor": "413866586a3757364e6e55314d644a64577a5451775350486354777262755277",
+      "version": "v7",
+      "reputation_score": 4242,
+      "reputation_confidence_bps": 7500,
+      "reputation_score_version": "intel_renorm_v1_1",
+      "reputation_feature_window_start_unix": 1747408000,
+      "reputation_data_quality": "agent_executions+x402_solana_payer_agg",
+      "recheck_after_unix": 1750259200,
+      "staleness_days": 3,
+      "score_decay_model": "step:<=7d=1.0,<=30d=0.8,<=90d=0.5,>90d=0.25",
+      "settlement_tx": "3sQZyC6irjqez9wixpvkbPyg5uX9iUtWbcjBjWXU94psAJSimgx4BcPgA8fXj7W6NnU1MdJdWzTQwSPHcTwrbuRw"
+    },
+    "no_tx": {
+      "domain": "TWZRD:AO_REPUTATION_RECEIPT_V7",
+      "agent_id": "34MTPJ73pzFQK8kDBbX8ShiSKzviouvtZmZxzK7KirjN",
+      "score": 67,
+      "attention_score": null,
+      "confidence_bps": 8000,
+      "timestamp_unix": 1750000000,
+      "payer": "2kHuoFtsKkrGXqBxchsf4oiMcnCoeHnxEz79uF8A5cWL",
+      "settlement_anchor": "0000000000000000000000000000000000000000000000000000000000000000",
+      "version": "v7",
+      "reputation_score": 4242,
+      "reputation_confidence_bps": 7500,
+      "reputation_score_version": "intel_renorm_v1_1",
+      "reputation_feature_window_start_unix": 1747408000,
+      "reputation_data_quality": "agent_executions+x402_solana_payer_agg",
+      "recheck_after_unix": 1750259200,
+      "staleness_days": 3,
+      "score_decay_model": "step:<=7d=1.0,<=30d=0.8,<=90d=0.5,>90d=0.25",
+      "settlement_tx": null
+    }
+  },
+  "base_leaf": {
+    "tx": "0x66db791ede759491e833ec64c22ea08241163b372d82bc31c5c62659b9e2de44",
+    "no_tx": "0x710548a60b7c495b669af7f90b56f608106da4ccfe0572b952489e52ea32bec8"
+  },
+  "cases": [
+    {
+      "name": "genuine receipt with settlement_tx",
+      "base": "tx",
+      "edits": [],
+      "expect": "valid"
+    },
+    {
+      "name": "genuine receipt without settlement_tx",
+      "base": "no_tx",
+      "edits": [],
+      "expect": "valid"
+    },
+    {
+      "name": "anchor set to zeros",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor does not match settlement_tx"
+    },
+    {
+      "name": "anchor set to a short hex string",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "deadbeef"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "anchor uppercased",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "413866586A3757364E6E55314D644A64577A5451775350486354777262755277"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "anchor set to a number",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": 123
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "anchor set to null",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": null
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "anchor removed",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ]
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "settlement_tx removed",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ]
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor does not match settlement_tx"
+    },
+    {
+      "name": "settlement_tx set to null",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": null
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor does not match settlement_tx"
+    },
+    {
+      "name": "settlement_tx set to empty string",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": ""
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor does not match settlement_tx"
+    },
+    {
+      "name": "settlement_tx set to false",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": false
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be a string or null"
+    },
+    {
+      "name": "settlement_tx set to 0",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": 0
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be a string or null"
+    },
+    {
+      "name": "settlement_tx set to an empty array",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": []
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be a string or null"
+    },
+    {
+      "name": "settlement_tx as an array of its last 32 bytes",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": [
+            65,
+            56,
+            102,
+            88,
+            106,
+            55,
+            87,
+            54,
+            78,
+            110,
+            85,
+            49,
+            77,
+            100,
+            74,
+            100,
+            87,
+            122,
+            84,
+            81,
+            119,
+            83,
+            80,
+            72,
+            99,
+            84,
+            119,
+            114,
+            98,
+            117,
+            82,
+            119
+          ]
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be a string or null"
+    },
+    {
+      "name": "settlement_tx as an array of all its bytes",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": [
+            51,
+            115,
+            81,
+            90,
+            121,
+            67,
+            54,
+            105,
+            114,
+            106,
+            113,
+            101,
+            122,
+            57,
+            119,
+            105,
+            120,
+            112,
+            118,
+            107,
+            98,
+            80,
+            121,
+            103,
+            53,
+            117,
+            88,
+            57,
+            105,
+            85,
+            116,
+            87,
+            98,
+            99,
+            106,
+            66,
+            106,
+            87,
+            88,
+            85,
+            57,
+            52,
+            112,
+            115,
+            65,
+            74,
+            83,
+            105,
+            109,
+            103,
+            120,
+            52,
+            66,
+            99,
+            80,
+            103,
+            65,
+            56,
+            102,
+            88,
+            106,
+            55,
+            87,
+            54,
+            78,
+            110,
+            85,
+            49,
+            77,
+            100,
+            74,
+            100,
+            87,
+            122,
+            84,
+            81,
+            119,
+            83,
+            80,
+            72,
+            99,
+            84,
+            119,
+            114,
+            98,
+            117,
+            82,
+            119
+          ]
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be a string or null"
+    },
+    {
+      "name": "settlement_tx with a lone surrogate",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": "\ud800sQZyC6irjqez9wixpvkbPyg5uX9iUtWbcjBjWXU94psAJSimgx4BcPgA8fXj7W6NnU1MdJdWzTQwSPHcTwrbuRw"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_tx must be well-formed UTF-8"
+    },
+    {
+      "name": "no tx: anchor with trailing non-hex",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "0000000000000000000000000000000000000000000000000000000000000000zz"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: anchor with an odd trailing digit",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "00000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: anchor with a non-ASCII character",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "000000000000000000000000000000000000000000000000000000000000000\u0130"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: anchor as an array of byte values",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: anchor with spaces between byte pairs",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: anchor with a leading zero byte (33 bytes)",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "000000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor must be 64 lowercase hex characters"
+    },
+    {
+      "name": "no tx: nonzero anchor",
+      "base": "no_tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_anchor"
+          ],
+          "value": "1111111111111111111111111111111111111111111111111111111111111111"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 settlement_anchor does not match settlement_tx"
+    },
+    {
+      "name": "attention_score set to a number",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "attention_score"
+          ],
+          "value": 99
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 attention_score must be null"
+    },
+    {
+      "name": "attention_score set to a string",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "attention_score"
+          ],
+          "value": "x"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 attention_score must be null"
+    },
+    {
+      "name": "unknown preimage key added",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "trusted_allow"
+          ],
+          "value": true
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 preimage has fields the leaf does not bind: trusted_allow"
+    },
+    {
+      "name": "two unknown preimage keys are listed sorted",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "zeta"
+          ],
+          "value": 1
+        },
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "alpha"
+          ],
+          "value": 1
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 preimage has fields the leaf does not bind: alpha, zeta"
+    },
+    {
+      "name": "signing_alg relabelled",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "signing_alg"
+          ],
+          "value": "rsa"
+        }
+      ],
+      "expect": "refused",
+      "error": "V7 signing_alg must be ed25519"
+    },
+    {
+      "name": "signature with S + L (non-canonical)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "s_plus_l"
+        }
+      ],
+      "expect": "refused",
+      "error": "signature not valid for the trusted"
+    },
+    {
+      "name": "attention_score removed (null and absent read the same)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "preimage",
+            "attention_score"
+          ]
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "signing_alg removed",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "signing_alg"
+          ]
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "leaf uppercased (a derived value)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "leaf"
+          ],
+          "value": "0x66DB791EDE759491E833EC64C22EA08241163B372D82BC31C5C62659B9E2DE44"
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "leaf without 0x (a derived value)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "leaf"
+          ],
+          "value": "66db791ede759491e833ec64c22ea08241163b372d82bc31c5c62659b9e2de44"
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "key_id removed (signature still checked against the trusted keys)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "key_id"
+          ]
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "signing_pubkey removed (signature still checked against the trusted keys)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "delete",
+          "path": [
+            "signing_pubkey"
+          ]
+        }
+      ],
+      "expect": "valid"
+    },
+    {
+      "name": "settlement_tx prefix rewritten (leaf binds only its last 32 bytes)",
+      "base": "tx",
+      "edits": [
+        {
+          "op": "set",
+          "path": [
+            "preimage",
+            "settlement_tx"
+          ],
+          "value": "EXAMPLE-rjqez9wixpvkbPyg5uX9iUtWbcjBjWXU94psAJSimgx4BcPgA8fXj7W6NnU1MdJdWzTQwSPHcTwrbuRw"
+        }
+      ],
+      "expect": "valid"
+    }
+  ]
+}
