@@ -65,6 +65,13 @@ LEGACY_RECEIPT_PUBKEYS = (
     "9V6Pn19kiUA5Rn6JpQfNduanvGt2aXGwsarosNfa2Ldf",
     "96X11cfazxwYpg2g1UodocVX9ZYpXEowDZNtKv2xRVhc",
 )
+# Last instant a legacy-signed receipt is accepted: 2026-08-28T23:59:59Z, the
+# end of the day the v2 key replaced the second legacy key in the issuer
+# source (2026-08-28T01:48:06Z). The first production signature under v2 on
+# the public record is the 2026-08-28 ledger attestation, created
+# 2026-08-29T04:07:51Z; production switched between those two instants.
+LEGACY_RECEIPT_KEY_CUTOFF_UNIX = 1787961599
+LEGACY_KEY_REFUSAL = "legacy receipt key is accepted only for V5/V6 receipts dated at or before the key rotation"
 DOMAIN = b"TWZRD:AO_REPUTATION_RECEIPT_V5"
 ATTENTION_DOMAIN = b"TWZRD:AO_ATTENTION_RECEIPT_V5"
 # V6 binds the reputation_* provenance fields into the leaf (V5 left them unsigned).
@@ -110,6 +117,17 @@ V7_PREIMAGE_FIELDS = frozenset((
     "recheck_after_unix", "staleness_days", "score_decay_model", "settlement_tx",
 ))
 _LOWER_HEX_64 = re.compile(r"[0-9a-f]{64}")
+
+
+def legacy_key_allowed(leaf_version, timestamp_unix) -> bool:
+    """A legacy key may verify only a V5 or V6 leaf whose signed timestamp_unix
+    is at or before the cutoff. V7 and later are checked against the current key."""
+    if leaf_version not in ("v5", "v6") or isinstance(timestamp_unix, bool):
+        return False
+    ts = timestamp_unix
+    if isinstance(ts, float) and ts.is_integer():
+        ts = int(ts)  # JSON 1748736000.0 is the same integer to the JS verifier
+    return isinstance(ts, int) and 0 <= ts <= LEGACY_RECEIPT_KEY_CUTOFF_UNIX
 
 
 def hashed_leaf_binding(pre: dict) -> str:
@@ -353,6 +371,9 @@ def verify(receipt: dict, trusted_pubkey_b58: str, max_age_seconds: int | None =
     out["leaf_version"] = binding
     out["unauthenticated_fields"] = _unauthenticated_fields(pre, is_v6)
     out["freshness_unauthenticated"] = binding != "v7"
+    if receipt.get("leaf") is not None and not isinstance(receipt.get("leaf"), str):
+        out["errors"].append("leaf must be a string")
+        return out
     if pre.get("domain") == REPUTATION_V7_DOMAIN.decode() and (
         receipt.get("kind") != "twzrd_reputation_receipt_v7" or receipt.get("version") != "v7" or pre.get("version") != "v7"
     ):
@@ -380,15 +401,23 @@ def verify(receipt: dict, trusted_pubkey_b58: str, max_age_seconds: int | None =
 
     embedded = receipt.get("signing_pubkey")
     key_id = receipt.get("key_id")
-    if key_id == CURRENT_RECEIPT_SIGNING_KEY_ID:
-        trusted_keys = (trusted_pubkey_b58,)
-    elif key_id == LEGACY_RECEIPT_SIGNING_KEY_ID:
-        trusted_keys = LEGACY_RECEIPT_PUBKEYS
-    elif not key_id:
-        trusted_keys = (trusted_pubkey_b58, *LEGACY_RECEIPT_PUBKEYS)
-    else:
+    legacy_ok = legacy_key_allowed(binding, pre.get("timestamp_unix"))
+    if key_id and key_id not in (CURRENT_RECEIPT_SIGNING_KEY_ID, LEGACY_RECEIPT_SIGNING_KEY_ID):
         out["errors"].append(f"unknown receipt signing key_id {key_id}")
         return out
+    if trusted_pubkey_b58 != CURRENT_RECEIPT_PUBKEY:
+        # A non-current trusted key is the caller's own pin (a test key or an
+        # operator-pinned historical key): it is not widened with legacy keys.
+        trusted_keys = (trusted_pubkey_b58,)
+    elif key_id == CURRENT_RECEIPT_SIGNING_KEY_ID:
+        trusted_keys = (trusted_pubkey_b58,)
+    elif key_id == LEGACY_RECEIPT_SIGNING_KEY_ID:
+        if not legacy_ok:
+            out["errors"].append(LEGACY_KEY_REFUSAL)
+            return out
+        trusted_keys = LEGACY_RECEIPT_PUBKEYS
+    else:
+        trusted_keys = (trusted_pubkey_b58, *LEGACY_RECEIPT_PUBKEYS) if legacy_ok else (trusted_pubkey_b58,)
 
     if embedded and embedded not in trusted_keys:
         out["errors"].append(
@@ -464,22 +493,33 @@ def card_verdict(receipt: dict, res: dict) -> str:
     return "invalid"
 
 
+def freshness_leaf_bound(res: dict | None) -> bool:
+    """Whether this verification proves the freshness triple.
+
+    True only when the receipt verified (leaf and signature) and its freshness
+    is inside the leaf, which is V7 only. Read from the verification result,
+    never from the receipt JSON. A missing flag means unauthenticated, so a
+    spoofed _V7 domain on a V5/V6 signature and every INVALID receipt read False.
+    Mirrors JS freshnessLeafBound().
+    """
+    return bool(res) and bool(res.get("valid")) and res.get("freshness_unauthenticated") is False
+
+
 def format_trusted_bits(receipt: dict | None = None, res: dict | None = None) -> str:
     """Consumption bits. Never read trusted_* from the receipt JSON.
 
     A holder can write trusted_allow=true next to the freshness triple.
-    These bits are a consumption-policy signal, not a crypto readout: they stay
-    false on V5, V6 and genuine V7 alike (V7 issuance is mechanically live on
-    the free sample and the paid /trust route; no external buyer has paid for
-    a V7 receipt yet; this function does not read that state), and even when a
-    spoofed _V7 domain makes freshness_unauthenticated look false.
-    trusted_due is never computed here (no now >= recheck_after_unix check).
+    trusted_due and trusted_allow are constant false on V5, V6 and V7 alike:
+    nothing here compares now to recheck_after_unix or grants a spend.
+    freshness_bound is the one line that follows the verification: it says
+    what the card's FRESHNESS lines say, so it is true only on a V7 receipt
+    this run verified. It does not say the recheck date is still ahead.
     """
-    del receipt, res
+    del receipt
     return "\n".join((
         "trusted_due      : false",
         "trusted_allow    : false",
-        "freshness_bound  : false",
+        "freshness_bound  : true" if freshness_leaf_bound(res) else "freshness_bound  : false",
     ))
 
 
@@ -492,8 +532,9 @@ def format_bound_freshness_card(receipt: dict, res: dict) -> str:
     fresh = freshness_field_names(pre)
     # Schema coverage is not a consumption allow. Only a valid verify whose
     # freshness is actually leaf-bound may claim the V7 note. Spoofed _V7
-    # labels on a V5/V6 signature stay untrusted.
-    freshness_bound = bool(res.get("valid")) and res.get("freshness_unauthenticated") is False
+    # labels on a V5/V6 signature stay untrusted. The trusted-bits block reads
+    # the same function, so the two cannot disagree.
+    freshness_bound = freshness_leaf_bound(res)
     lines = []
     for name in bound:
         # The leaf hashes the last 32 UTF-8 bytes of settlement_tx (_anchor32),

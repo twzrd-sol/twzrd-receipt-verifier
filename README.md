@@ -82,8 +82,11 @@ npx twzrd-receipt-verifier receipt.json --pubkey Ak5SQwHpuQAqU7ty7ZWX7qgF39A9yi7
 | key_id | `twzrd-receipt-ed25519-v2` |
 | public key (base58) | `Ak5SQwHpuQAqU7ty7ZWX7qgF39A9yi72c22KNn8sHzvS` |
 
-During the bounded rollout, `twzrd-receipt-ed25519-v1` and its published
-legacy public keys remain accepted for verification only. New receipts are
+`twzrd-receipt-ed25519-v1` and its published legacy public keys remain
+accepted for verification only, and only for a V5 or V6 receipt whose signed
+`timestamp_unix` is at or before the end of the key rotation day
+(2026-08-28T23:59:59Z). A
+V7 receipt, or a later V5/V6 one, verifies under v2 alone. New receipts are
 always signed with v2; do not relabel a v1 receipt as v2.
 
 Also published, machine-readable, at:
@@ -385,17 +388,21 @@ FRESHNESS score_decay_model   covered by the V7 leaf binding
 VERDICT   valid-signature
 trusted_due      : false
 trusted_allow    : false
-freshness_bound  : false
+freshness_bound  : true
 ```
 
-`trusted_due` / `trusted_allow` / `freshness_bound` are consumption bits, not a
-readout of the receipt. Both CLIs print all three `false` unconditionally - on
-V5, V6, genuine V7, on a spoofed `_V7` suffix (e.g. `_V6_V7`), and on a
-V6-signed receipt whose domain was rewritten to the exact
-`TWZRD:AO_REPUTATION_RECEIPT_V7` alike - and never read `trusted_*` from the
-JSON. So `freshness_bound : false` under a V7 card does not contradict the
-`covered by the V7 leaf binding` lines above it: the leaf binding is reported on
-the FRESHNESS line, the consumption bit stays off. For trust-API receipts
+`trusted_due` and `trusted_allow` are consumption bits, not a readout of the
+receipt. Both CLIs print them `false` unconditionally, on V5, V6 and V7 alike,
+and never read `trusted_*` from the JSON. `freshness_bound` reports the same
+fact as the FRESHNESS lines above it, taken from the verification result: it is
+`true` only when this run verified a V7 receipt, whose freshness triple is
+inside the signed leaf. It is `false` on V5 and V6, on a spoofed `_V7` suffix
+(e.g. `_V6_V7`), on a V6-signed receipt whose domain was rewritten to the exact
+`TWZRD:AO_REPUTATION_RECEIPT_V7`, and on anything that reads `INVALID`. Through
+1.4.5 it printed `false` on a genuine V7 receipt too, under FRESHNESS lines
+that read `covered by the V7 leaf binding`. `freshness_bound  : true` says the
+recheck date is the issuer's. It does not say that date is still ahead, and it
+is not a spend allow. For trust-API receipts
 `trusted_due` is never computed: `verify()` does not compare now to
 `recheck_after_unix` (only the separate AgentReadinessReceipt path exposes an
 advisory `past_recheck_after`, see above). Do not treat `VALID` as a trusted
